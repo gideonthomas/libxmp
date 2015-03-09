@@ -1,4 +1,5 @@
 #include <jni.h>
+#include <android/log.h>
 
 // Must be defined to instantiate template classes
 #define TXMP_STRING_TYPE std::string
@@ -23,9 +24,9 @@
 #include <fstream>
 
 extern "C" {
-JNIEXPORT jint JNICALL Java_com_xmp_XMPTest_setLicense(JNIEnv *env, jobject obj,
+JNIEXPORT jint JNICALL Java_com_xmptest_XMPTest_setLicense(JNIEnv *env, jobject obj,
 		jstring fileName, jstring licenseName);
-JNIEXPORT jstring JNICALL Java_com_xmp_XMPTest_getLicense(JNIEnv *env, jobject obj,
+JNIEXPORT jstring JNICALL Java_com_xmptest_XMPTest_getLicense(JNIEnv *env, jobject obj,
 		jstring fileName);
 };
 
@@ -34,22 +35,28 @@ void terminate() {
 	SXMPMeta::Terminate();
 }
 
-JNIEXPORT jint JNICALL Java_com_xmp_XMPTest_setLicense(JNIEnv *env, jobject obj,
+JNIEXPORT jint JNICALL Java_com_xmptest_XMPTest_setLicense(JNIEnv *env, jobject obj,
 		jstring fileName, jstring licenseName) {
 	std::string fName = env->GetStringUTFChars(fileName, NULL);
 	std::string licenseKey = env->GetStringUTFChars(licenseName, NULL);
 
 	if(!SXMPMeta::Initialize()) {
+		__android_log_print(ANDROID_LOG_VERBOSE, "XMPTest", "Could not initialize XMPMeta component");
 		return -1;
 	}
+
+	__android_log_print(ANDROID_LOG_VERBOSE, "XMPTest", "Initialized XMPMeta component");
 
 	XMP_OptionBits options = kXMPFiles_ServerMode | kXMPFiles_IgnoreLocalText;
 
 	try {
 		if(!SXMPFiles::Initialize(options)) {
+			__android_log_print(ANDROID_LOG_VERBOSE, "XMPTest", "Could not initialize XMPFiles component");
 			terminate();
 			return -1;
 		}
+
+		__android_log_print(ANDROID_LOG_VERBOSE, "XMPTest", "Initialized XMPFiles component");
 
 		XMP_OptionBits opts = kXMPFiles_OpenForUpdate | kXMPFiles_OpenUseSmartHandler;
 		bool ok;
@@ -66,27 +73,43 @@ JNIEXPORT jint JNICALL Java_com_xmp_XMPTest_setLicense(JNIEnv *env, jobject obj,
 
 		ok = myFile.OpenFile(fName, kXMP_JPEGFile, opts);
 
+		char *buf = (char*)malloc(fName.length() + 1);
+		strcpy(buf, fName.c_str());
+
 		if(!ok) {
+			__android_log_print(ANDROID_LOG_VERBOSE, "XMPTest", "Could not open file %s", buf);
+			free(buf);
 			terminate();
 			return -1;
 		}
 
+		__android_log_print(ANDROID_LOG_VERBOSE, "XMPTest", "Successfully opened file %s", buf);
+
 		myFile.GetXMP(&meta);
+
+		__android_log_print(ANDROID_LOG_VERBOSE, "XMPTest", "Retrieved XMP metadata from file");
 
 		meta.SetProperty(kXMP_NS_XMP_Rights, "WebStatement", licenses[licenseKey], 0);
 
+		__android_log_print(ANDROID_LOG_VERBOSE, "XMPTest", "Modified XMP metadata for file");
+
 		myFile.PutXMP(meta);
+
+		__android_log_print(ANDROID_LOG_VERBOSE, "XMPTest", "Saving XMP metadata to file");
 
 		myFile.CloseFile();
 
+		__android_log_print(ANDROID_LOG_VERBOSE, "XMPTest", "Successfully updated XMP metadata for file");
+		free(buf);
 		terminate();
 		return 0;
 	} catch(XMP_Error &e) {
+		__android_log_print(ANDROID_LOG_VERBOSE, "XMPTest", "Encountered exception %s", e.GetErrMsg());
 		return -1;
 	}
 }
 
-JNIEXPORT jstring JNICALL Java_com_xmp_XMPTest_getLicense(JNIEnv *env, jobject obj,
+JNIEXPORT jstring JNICALL Java_com_xmptest_XMPTest_getLicense(JNIEnv *env, jobject obj,
 		jstring fileName) {
 	std::string fName = env->GetStringUTFChars(fileName, NULL);
 
